@@ -208,7 +208,7 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
 
       <section className="card">
         <h2>Group availability</h2>
-        <p className="muted">Darker means more people are free. Hover over a cell to see who.</p>
+        <p className="muted">Darker means more people are free.</p>
         <Heatmap grid={grid} bySlot={bySlot} total={participants.length} names={names} />
       </section>
     </div>

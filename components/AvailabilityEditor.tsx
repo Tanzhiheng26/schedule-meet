@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { Grid } from "@/lib/slots";
 import { SlotGrid } from "./SlotGrid";
 
@@ -21,8 +21,14 @@ export function AvailabilityEditor({
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [pending, startTransition] = useTransition();
-  // While dragging, every cell touched is set to the state the first cell flipped to.
-  const drag = useRef<{ on: boolean } | null>(null);
+  // Dragging paints the rectangle between the first cell and the current one, all set to the
+  // state the first cell flipped to. Filling the rectangle means fast swipes can't skip cells.
+  const drag = useRef<{ on: boolean; anchor: [number, number]; base: Set<string> } | null>(null);
+  const position = useMemo(() => {
+    const m = new Map<string, [number, number]>();
+    grid.slots.forEach((col, di) => col.forEach((iso, ti) => m.set(iso, [di, ti])));
+    return m;
+  }, [grid]);
 
   useEffect(() => {
     const stop = () => (drag.current = null);
@@ -34,14 +40,18 @@ export function AvailabilityEditor({
     };
   }, []);
 
-  const apply = (iso: string, on: boolean) => {
-    setSelected((prev) => {
-      if (prev.has(iso) === on) return prev;
-      const next = new Set(prev);
-      if (on) next.add(iso);
-      else next.delete(iso);
-      return next;
-    });
+  const paintTo = (iso: string) => {
+    const d = drag.current;
+    const p = position.get(iso);
+    if (!d || !p) return;
+    const next = new Set(d.base);
+    for (let di = Math.min(d.anchor[0], p[0]); di <= Math.max(d.anchor[0], p[0]); di++) {
+      for (let ti = Math.min(d.anchor[1], p[1]); ti <= Math.max(d.anchor[1], p[1]); ti++) {
+        if (d.on) next.add(grid.slots[di][ti]);
+        else next.delete(grid.slots[di][ti]);
+      }
+    }
+    setSelected(next);
     setDirty(true);
     setStatus("idle");
   };
@@ -74,15 +84,16 @@ export function AvailabilityEditor({
         className="editor"
         onPointerDown={(e) => {
           const iso = slotAt(e.clientX, e.clientY);
-          if (!iso) return;
+          const anchor = iso && position.get(iso);
+          if (!iso || !anchor) return;
           e.preventDefault();
-          drag.current = { on: !selected.has(iso) };
-          apply(iso, drag.current.on);
+          drag.current = { on: !selected.has(iso), anchor, base: selected };
+          paintTo(iso);
         }}
         onPointerMove={(e) => {
           if (!drag.current) return;
           const iso = slotAt(e.clientX, e.clientY);
-          if (iso) apply(iso, drag.current.on);
+          if (iso) paintTo(iso);
         }}
       >
         <SlotGrid

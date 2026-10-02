@@ -262,8 +262,12 @@ button.small {
 }
 
 /* Grid */
-.grid-scroll {
-  overflow-x: auto;
+.grid-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 .slot-grid {
   display: grid;
@@ -290,11 +294,9 @@ button.small {
   background: var(--cell);
   border-radius: 3px;
 }
-.editor {
-  touch-action: none;
-}
 .editor .cell {
   cursor: pointer;
+  touch-action: none;
 }
 .editor .cell[data-on] {
   background: var(--on);
@@ -302,9 +304,20 @@ button.small {
 .cell.heat {
   background: color-mix(in oklab, var(--on) var(--pct), var(--cell));
 }
+.cell.heat {
+  cursor: pointer;
+}
 .cell.heat[data-all] {
   outline: 2px solid var(--on);
   outline-offset: -2px;
+}
+.cell.heat[data-picked] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.heat-detail {
+  margin-top: 0.5rem;
+  min-height: 1.5em;
 }
 .legend {
   display: flex;
@@ -360,4 +373,27 @@ button.small {
 }
 .dp-day:disabled {
   opacity: 0.35;
+}
+
+/* Phones and tablets */
+@media (pointer: coarse), (max-width: 600px) {
+  /* Finger-sized slots */
+  .cell {
+    height: 2rem;
+  }
+  /* iOS Safari zooms into fields with text under 16px */
+  input,
+  select,
+  textarea,
+  textarea.prompt {
+    font-size: 16px;
+  }
+}
+@media (max-width: 600px) {
+  main {
+    padding-inline: 0.75rem;
+  }
+  .card {
+    padding: 1rem;
+  }
 }
