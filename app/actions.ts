@@ -1,0 +1,115 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/db";
+import { isEmail, parseParticipants } from "@/lib/participants";
+import { buildGrid, gridSlotSet, isValidTimezone, MAX_DATES, parseDates, parseHHMM } from "@/lib/slots";
+import { newToken } from "@/lib/tokens";
+
+export type CreateEventState = { error?: string };
+
+const MAX_PARTICIPANTS = 100;
+
+export async function createEvent(_prev: CreateEventState, form: FormData): Promise<CreateEventState> {
+  const str = (k: string) => String(form.get(k) ?? "").trim();
+  const int = (k: string) => Number.parseInt(str(k), 10);
+
+  const title = str("title");
+  const hostName = str("hostName");
+  const hostEmail = str("hostEmail").toLowerCase();
+  const timezone = str("timezone");
+  const dates = parseDates(str("dates"));
+  const dayStartMin = parseHHMM(str("dayStart"));
+  const dayEndMin = parseHHMM(str("dayEnd"));
+  const durationMin = int("durationMin");
+  const required = parseParticipants(str("participants"));
+  const optional = parseParticipants(str("optionalParticipants"));
+  const invalid = [...required.invalid, ...optional.invalid];
+  // Anyone listed in both is treated as required.
+  const requiredEmails = new Set(required.participants.map((p) => p.email));
+  const participants = [
+    ...required.participants.map((p) => ({ ...p, required: true })),
+    ...optional.participants.filter((p) => !requiredEmails.has(p.email)).map((p) => ({ ...p, required: false })),
+  ];
+
+  if (!title || title.length > 200) return { error: "Please enter a title (up to 200 characters)." };
+  if (!hostName) return { error: "Please enter your name." };
+  if (!isEmail(hostEmail)) return { error: "Please enter a valid email for yourself." };
+  if (!isValidTimezone(timezone)) return { error: `Unknown time zone "${timezone}".` };
+  if (!dates) return { error: "Some of the selected dates are invalid." };
+  if (dates.length === 0) return { error: "Pick at least one day for the meeting." };
+  if (dates.length > MAX_DATES) return { error: `Pick at most ${MAX_DATES} days.` };
+  if (dayStartMin === null || dayEndMin === null || dayEndMin <= dayStartMin)
+    return { error: "The daily end time must be after the start time." };
+  if (!(durationMin >= 15 && durationMin <= dayEndMin - dayStartMin))
+    return { error: "The meeting length must fit within the daily hours." };
+  if (invalid.length) return { error: `These don't look like email addresses: ${invalid.join(", ")}` };
+  if (requiredEmails.size === 0) return { error: "Add at least one required participant." };
+  if (participants.length > MAX_PARTICIPANTS) return { error: `At most ${MAX_PARTICIPANTS} participants.` };
+
+  const event = await prisma.event.create({
+    data: {
+      adminToken: newToken(),
+      title,
+      description: str("description"),
+      hostName,
+      hostEmail,
+      timezone,
+      dates,
+      dayStartMin,
+      dayEndMin,
+      durationMin,
+      participants: { create: participants.map((p) => ({ ...p, token: newToken() })) },
+    },
+  });
+  redirect(`/host/${event.adminToken}`);
+}
+
+export async function saveAvailability(token: string, slots: string[]): Promise<void> {
+  const participant = await prisma.participant.findUnique({ where: { token }, include: { event: true } });
+  if (!participant) throw new Error("Unknown participant link.");
+
+  const valid = gridSlotSet(buildGrid(participant.event));
+  const chosen = [...new Set(slots)].filter((s) => valid.has(s));
+
+  await prisma.$transaction([
+    prisma.availability.deleteMany({ where: { participantId: participant.id } }),
+    prisma.availability.createMany({
+      data: chosen.map((s) => ({ participantId: participant.id, slotStart: new Date(s) })),
+    }),
+    prisma.participant.update({ where: { id: participant.id }, data: { respondedAt: new Date() } }),
+  ]);
+  revalidatePath(`/e/${token}`);
+  revalidatePath(`/host/${participant.event.adminToken}`);
+}
+
+async function updateEvent(adminToken: string, data: Parameters<typeof prisma.event.update>[0]["data"]) {
+  await prisma.event.update({ where: { adminToken }, data });
+  revalidatePath(`/host/${adminToken}`);
+}
+
+export async function markInvitesSent(adminToken: string): Promise<void> {
+  await updateEvent(adminToken, { invitesSentAt: new Date() });
+}
+
+export async function markReminderSent(adminToken: string): Promise<void> {
+  await updateEvent(adminToken, { lastReminderAt: new Date() });
+}
+
+export async function chooseSlot(adminToken: string, slotStart: string): Promise<void> {
+  const event = await prisma.event.findUnique({
+    where: { adminToken },
+    include: { participants: { where: { required: true, respondedAt: null }, select: { id: true } } },
+  });
+  if (!event || !gridSlotSet(buildGrid(event)).has(slotStart)) throw new Error("Invalid slot.");
+  if (event.participants.length) throw new Error("Wait until all required participants have responded.");
+  await updateEvent(adminToken, { finalSlotStart: new Date(slotStart) });
+}
+
+export async function toggleRequired(adminToken: string, participantId: string): Promise<void> {
+  const participant = await prisma.participant.findFirst({ where: { id: participantId, event: { adminToken } } });
+  if (!participant) throw new Error("Unknown participant.");
+  await prisma.participant.update({ where: { id: participantId }, data: { required: !participant.required } });
+  revalidatePath(`/host/${adminToken}`);
+}

@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id                    String        @id @default(cuid())
+  adminToken            String        @unique
+  title                 String
+  description           String        @default("")
+  hostName              String
+  hostEmail             String
+  timezone              String
+  dates                 String[] // YYYY-MM-DD in the event timezone
+  dayStartMin           Int // minutes after local midnight
+  dayEndMin             Int
+  slotMinutes           Int           @default(30) // fixed at 30 for now
+  durationMin           Int
+  invitesSentAt         DateTime?
+  lastReminderAt        DateTime?
+  finalSlotStart        DateTime?
+  createdAt             DateTime      @default(now())
+  participants          Participant[]
+}
+
+model Participant {
+  id           String         @id @default(cuid())
+  eventId      String
+  event        Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name         String
+  email        String
+  token        String         @unique
+  required     Boolean        @default(true) // optional participants don't block scheduling
+  respondedAt  DateTime?
+  availability Availability[]
+
+  @@unique([eventId, email])
+}
+
+model Availability {
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  slotStart     DateTime
+
+  @@id([participantId, slotStart])
+}

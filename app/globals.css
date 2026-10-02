@@ -1,0 +1,363 @@
+:root {
+  --bg: #f7f7f5;
+  --card: #ffffff;
+  --text: #1c1d1f;
+  --muted: #6b6f76;
+  --border: #e3e3df;
+  --accent: #2f6fde;
+  --accent-text: #ffffff;
+  --cell: #eef0f3;
+  --on: #2f9e5b;
+  --attention: #fff6e0;
+  --attention-border: #f0c96b;
+  --error: #b3261e;
+  --success: #1e7a43;
+  --radius: 10px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141517;
+    --card: #1d1f22;
+    --text: #e9eaec;
+    --muted: #9a9ea6;
+    --border: #2e3136;
+    --accent: #5b8ff0;
+    --cell: #2a2d32;
+    --on: #3fbf74;
+    --attention: #2c2616;
+    --attention-border: #7a6122;
+    --error: #f2857c;
+    --success: #5fd08f;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+}
+
+h1 {
+  font-size: 1.6rem;
+  margin: 0 0 0.25rem;
+}
+h2 {
+  font-size: 1.15rem;
+  margin: 0 0 0.75rem;
+}
+h3 {
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+}
+p {
+  margin: 0 0 0.5rem;
+}
+a {
+  color: var(--accent);
+}
+code {
+  font-size: 0.9em;
+}
+
+.site-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  padding: 0.75rem 1rem;
+}
+.brand {
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 1.1rem;
+}
+.brand span {
+  color: var(--accent);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.row {
+  display: flex;
+  align-items: center;
+}
+.gap {
+  gap: 0.5rem;
+}
+.wrap {
+  flex-wrap: wrap;
+}
+.mt {
+  margin-top: 0.75rem;
+}
+.muted {
+  color: var(--muted);
+}
+.error {
+  color: var(--error);
+}
+.success {
+  color: var(--success);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+.card[data-tone="attention"] {
+  background: var(--attention);
+  border-color: var(--attention-border);
+}
+details.card summary {
+  cursor: pointer;
+}
+.notice {
+  font-size: 0.9rem;
+}
+
+/* Forms */
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.span-2 {
+  grid-column: span 2;
+}
+@media (max-width: 600px) {
+  .fields {
+    grid-template-columns: 1fr;
+  }
+  .span-2 {
+    grid-column: auto;
+  }
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-weight: 500;
+}
+label .muted {
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.field-label {
+  font-weight: 500;
+}
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+  width: 100%;
+}
+input[type="checkbox"] {
+  width: auto;
+}
+input[type="number"] {
+  max-width: 6rem;
+}
+textarea.prompt {
+  font: 0.85rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin: 0.5rem 0 0.75rem;
+  resize: vertical;
+}
+
+button,
+.button {
+  font: inherit;
+  font-weight: 500;
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+button.primary,
+.button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+button.small {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.85rem;
+}
+.pill {
+  font-size: 0.8rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.pill[data-variant="optional"] {
+  background: var(--cell);
+  color: var(--muted);
+}
+
+/* Lists */
+.people,
+.slots {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.5rem;
+}
+.people li,
+.slots li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.people li > span:nth-child(2),
+.slots li > span:nth-child(2) {
+  flex: 1;
+  min-width: 12rem;
+}
+.slots li[data-chosen] {
+  font-weight: 500;
+}
+
+/* Grid */
+.grid-scroll {
+  overflow-x: auto;
+}
+.slot-grid {
+  display: grid;
+  gap: 2px;
+  user-select: none;
+}
+.col-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  padding-bottom: 0.25rem;
+}
+.row-head {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: right;
+  padding-right: 0.4rem;
+  transform: translateY(-0.5em);
+}
+.cell {
+  height: 1.25rem;
+  background: var(--cell);
+  border-radius: 3px;
+}
+.editor {
+  touch-action: none;
+}
+.editor .cell {
+  cursor: pointer;
+}
+.editor .cell[data-on] {
+  background: var(--on);
+}
+.cell.heat {
+  background: color-mix(in oklab, var(--on) var(--pct), var(--cell));
+}
+.cell.heat[data-all] {
+  outline: 2px solid var(--on);
+  outline-offset: -2px;
+}
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.5rem;
+}
+.legend-bar {
+  width: 8rem;
+  height: 0.6rem;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--cell), var(--on));
+}
+
+/* Date picker */
+.datepicker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 24rem;
+}
+.dp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  user-select: none;
+  touch-action: none;
+}
+.dp-weekday {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+}
+.dp-day {
+  padding: 0.45rem 0;
+  text-align: center;
+  background: var(--cell);
+  border: 1px solid transparent;
+}
+.dp-day[data-today] {
+  border-color: var(--accent);
+}
+.dp-day[data-on] {
+  background: var(--on);
+  color: #fff;
+}
+.dp-day:disabled {
+  opacity: 0.35;
+}
