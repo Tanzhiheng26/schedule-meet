@@ -27,6 +27,7 @@ function emailBatchPrompt(emails: Email[]): string {
     "- Send each email separately, only to the recipient listed for it.",
     "- Use the subject and body exactly as written. Do not rewrite, summarize, or shorten them, and keep every link unchanged.",
     "- Send as plain text.",
+    "- For each email, generate a QR code image of the availability link in that email's body and attach it as a PNG file.",
     "- When you're done, list the recipients you sent to.",
   ].join("\n");
   const blocks = emails.map((e, i) =>

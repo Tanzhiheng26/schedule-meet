@@ -24,6 +24,7 @@ describe("prompts", () => {
   it("invite prompt has one email per recipient with their personal link", () => {
     const p = invitePrompt(event, [alice, bob], "https://app.test");
     expect(p).toContain("send the 2 emails below");
+    expect(p).toContain("generate a QR code image of the availability link");
     expect(p).toContain("To: alice@corp.com");
     expect(p).toContain("Hi Alice,");
     expect(p).toContain("https://app.test/e/tokA");
