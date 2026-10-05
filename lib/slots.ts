@@ -139,3 +139,10 @@ export function addMinutes(iso: string, minutes: number): string {
 export function formatSlot(iso: string, timezone: string, pattern = "EEE d MMM, HH:mm"): string {
   return formatInTimeZone(iso, timezone, pattern);
 }
+
+/** Events expire (and are deleted) at midnight after the last candidate day, in the event's time zone. */
+export function eventEndsAt(event: { dates: string[]; timezone: string }): Date {
+  const last = [...event.dates].sort().at(-1)!;
+  const nextDay = new Date(Date.parse(`${last}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  return fromZonedTime(`${nextDay}T00:00:00`, event.timezone);
+}

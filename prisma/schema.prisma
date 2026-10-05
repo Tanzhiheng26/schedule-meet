@@ -24,7 +24,10 @@ model Event {
   lastReminderAt        DateTime?
   finalSlotStart        DateTime?
   createdAt             DateTime      @default(now())
+  expiresAt             DateTime // midnight after the last candidate day; the event is deleted then
   participants          Participant[]
+
+  @@index([expiresAt])
 }
 
 model Participant {

@@ -6,6 +6,7 @@ import { CopyButton } from "@/components/CopyButton";
 import { Heatmap } from "@/components/Heatmap";
 import { PromptCard } from "@/components/PromptCard";
 import { getBaseUrl } from "@/lib/baseUrl";
+import { purgeExpiredEvents } from "@/lib/cleanup";
 import { prisma } from "@/lib/db";
 import { invitePrompt, meetingPrompt, participantLink, reminderPrompt } from "@/lib/prompts";
 import { addMinutes, availableFor, buildGrid, formatSlot, groupBySlot, rankSlots } from "@/lib/slots";
@@ -15,6 +16,7 @@ export const metadata: Metadata = { title: "Host dashboard · schedule-meet", ro
 
 export default async function HostPage({ params }: { params: Promise<{ adminToken: string }> }) {
   const { adminToken } = await params;
+  await purgeExpiredEvents();
   const event = await prisma.event.findUnique({
     where: { adminToken },
     include: {

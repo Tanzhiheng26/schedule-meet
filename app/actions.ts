@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { purgeExpiredEvents } from "@/lib/cleanup";
 import { prisma } from "@/lib/db";
 import { isEmail, parseParticipants } from "@/lib/participants";
-import { buildGrid, gridSlotSet, isValidTimezone, MAX_DATES, parseDates, parseHHMM } from "@/lib/slots";
+import { buildGrid, eventEndsAt, gridSlotSet, isValidTimezone, MAX_DATES, parseDates, parseHHMM } from "@/lib/slots";
 import { newToken } from "@/lib/tokens";
 
 export type CreateEventState = { error?: string };
@@ -48,9 +49,11 @@ export async function createEvent(_prev: CreateEventState, form: FormData): Prom
   if (requiredEmails.size === 0) return { error: "Add at least one required participant." };
   if (participants.length > MAX_PARTICIPANTS) return { error: `At most ${MAX_PARTICIPANTS} participants.` };
 
+  await purgeExpiredEvents();
   const event = await prisma.event.create({
     data: {
       adminToken: newToken(),
+      expiresAt: eventEndsAt({ dates, timezone }),
       title,
       description: str("description"),
       hostName,

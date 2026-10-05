@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { saveAvailability } from "@/app/actions";
 import { AvailabilityEditor } from "@/components/AvailabilityEditor";
 import { Heatmap } from "@/components/Heatmap";
+import { purgeExpiredEvents } from "@/lib/cleanup";
 import { prisma } from "@/lib/db";
 import { buildGrid, groupBySlot } from "@/lib/slots";
 
@@ -11,6 +12,7 @@ export const metadata: Metadata = { title: "Your availability · schedule-meet",
 
 export default async function ParticipantPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  await purgeExpiredEvents();
   const participant = await prisma.participant.findUnique({
     where: { token },
     include: {

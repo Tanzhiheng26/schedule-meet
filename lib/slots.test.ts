@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { availableFor, buildGrid, groupBySlot, parseDates, parseHHMM, rankSlots } from "./slots";
+import { availableFor, buildGrid, eventEndsAt, groupBySlot, parseDates, parseHHMM, rankSlots } from "./slots";
 
 describe("parseDates", () => {
   it("sorts and dedupes non-consecutive dates", () => {
@@ -96,5 +96,12 @@ describe("rankSlots", () => {
     expect(availableFor(grid, bySlot, s("05", "09:30"), 30, 60)).toEqual(["alice", "bob"]);
     expect(availableFor(grid, bySlot, s("05", "09:00"), 30, 60)).toEqual(["alice"]);
     expect(availableFor(grid, bySlot, s("05", "10:30"), 30, 60)).toEqual([]);
+  });
+});
+
+describe("eventEndsAt", () => {
+  it("is midnight after the last candidate day, in the event timezone", () => {
+    const event = { dates: ["2026-10-09", "2026-10-05"], timezone: "Asia/Singapore" };
+    expect(eventEndsAt(event).toISOString()).toBe("2026-10-09T16:00:00.000Z"); // 10 Oct 00:00 SGT
   });
 });

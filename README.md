@@ -14,6 +14,7 @@ The app never sends email itself. Invites, reminders, and the meeting invitation
    - **Best times**: meeting slots ranked by how many required participants are free, then how many people overall. You can pick one once all required participants have responded. Optional participants never block scheduling.
    - **Step 2 · Book the meeting**: appears once all required participants have responded, with the best time preselected. It gives a ChatGPT prompt to create the Outlook meeting (listing required and optional attendees separately).
 3. **Participants** (`/e/<token>`): click or drag to mark free times, then save. They can come back and edit.
+4. **Events are deleted** at midnight after the last candidate day (event time zone), with their participants and availability. Their links then show "Link not found". Clean-up runs whenever an event is created or a host/participant page loads.
 
 > **ChatGPT prerequisite:** your ChatGPT workspace admin must enable **write actions** for the Outlook Email and Outlook Calendar apps (they're off by default). ChatGPT may also ask you to approve each send.
 
