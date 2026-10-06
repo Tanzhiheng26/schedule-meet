@@ -150,15 +150,26 @@ export function eventEndsAt(event: { dates: string[]; timezone: string }): Date 
 /** Automatic reminders go out daily at this hour, in the event's time zone. */
 export const REMINDER_HOUR = 9;
 
-const localDate = (d: Date, tz: string) => formatInTimeZone(d, tz, "yyyy-MM-dd");
+/** The calendar date (YYYY-MM-DD) of `d` in time zone `tz`. */
+export const localDate = (d: Date, tz: string) => formatInTimeZone(d, tz, "yyyy-MM-dd");
+
+/** A YYYY-MM-DD date for emails, e.g. "Friday 9 October". */
+export const longDate = (date: string) => formatInTimeZone(`${date}T00:00:00Z`, "UTC", "EEEE d MMMM");
+
+/** True once the event's respond-by date is over, in the event's time zone. */
+export const respondByPassed = (event: { timezone: string; respondBy: string | null }, now: Date) =>
+  event.respondBy !== null && localDate(now, event.timezone) > event.respondBy;
 const reminderTimeOn = (date: string, tz: string) =>
   fromZonedTime(`${date}T${String(REMINDER_HOUR).padStart(2, "0")}:00:00`, tz);
 
 /**
  * The most recent daily reminder time at or before `now`, or null if it falls on the day the
- * event was created (reminders start the next day).
+ * event was created (reminders start the next day) or after the respond-by date (they stop then).
  */
-export function latestReminderTime(event: { timezone: string; createdAt: Date }, now: Date): Date | null {
+export function latestReminderTime(
+  event: { timezone: string; createdAt: Date; respondBy: string | null },
+  now: Date,
+): Date | null {
   const tz = event.timezone;
   const today = localDate(now, tz);
   let at = reminderTimeOn(today, tz);
@@ -166,5 +177,8 @@ export function latestReminderTime(event: { timezone: string; createdAt: Date },
     const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
     at = reminderTimeOn(yesterday, tz);
   }
-  return localDate(at, tz) > localDate(event.createdAt, tz) ? at : null;
+  const day = localDate(at, tz);
+  const started = day > localDate(event.createdAt, tz);
+  const stopped = event.respondBy !== null && day > event.respondBy;
+  return started && !stopped ? at : null;
 }

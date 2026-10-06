@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseParticipants } from "./participants";
-import { inviteEmails, meetingPrompt, reminderPrompt } from "./prompts";
+import { inviteEmails, meetingPrompt, reminderEmails } from "./prompts";
 
 describe("parseParticipants", () => {
   it("handles Outlook-style lists, bare emails, duplicates, and invalid entries", () => {
@@ -17,7 +17,7 @@ describe("parseParticipants", () => {
 });
 
 describe("prompts", () => {
-  const event = { title: "Sprint demo", description: "", hostName: "Zhi Heng", hostEmail: "zh@corp.com", timezone: "Asia/Singapore", durationMin: 30 };
+  const event = { title: "Sprint demo", description: "", hostName: "Zhi Heng", hostEmail: "zh@corp.com", timezone: "Asia/Singapore", durationMin: 30, respondBy: null };
   const alice = { name: "Alice Lee", email: "alice@corp.com", token: "tokA" };
   const bob = { name: "bob", email: "bob@corp.com", token: "tokB" };
 
@@ -32,11 +32,21 @@ describe("prompts", () => {
     expect(emails[0].body).not.toContain("tokB");
   });
 
-  it("reminder prompt only includes who it is given", () => {
-    const p = reminderPrompt(event, [bob], "https://app.test");
-    expect(p).toContain("send the 1 email below");
-    expect(p).toContain("https://app.test/e/tokB");
-    expect(p).not.toContain("alice@corp.com");
+  it("invite and reminder emails include the respond-by date when there is one", () => {
+    const dated = { ...event, respondBy: "2026-10-09" };
+    expect(inviteEmails(dated, [alice], "https://app.test")[0].body).toContain(
+      "Please mark your availability by Friday 9 October",
+    );
+    expect(reminderEmails(dated, [alice], "https://app.test")[0].body).toContain(
+      'mark your availability for "Sprint demo" by Friday 9 October.',
+    );
+    expect(inviteEmails(event, [alice], "https://app.test")[0].body).not.toContain(" by ");
+  });
+
+  it("reminder emails go only to who they are given", () => {
+    const emails = reminderEmails(event, [bob], "https://app.test");
+    expect(emails.map((e) => e.to)).toEqual(["bob@corp.com"]);
+    expect(emails[0].body).toContain("https://app.test/e/tokB");
   });
 
   it("meeting prompt shows times in the event timezone", () => {

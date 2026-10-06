@@ -5,7 +5,7 @@ import { AvailabilityEditor } from "@/components/AvailabilityEditor";
 import { Heatmap } from "@/components/Heatmap";
 import { purgeExpiredEvents } from "@/lib/cleanup";
 import { prisma } from "@/lib/db";
-import { buildGrid, groupBySlot } from "@/lib/slots";
+import { buildGrid, groupBySlot, longDate } from "@/lib/slots";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Your availability · schedule-meet", robots: { index: false } };
@@ -41,6 +41,7 @@ export default async function ParticipantPage({ params }: { params: Promise<{ to
         <p className="muted">
           Hi {participant.name}. {event.hostName} is scheduling a {event.durationMin}-minute meeting.
           {!participant.required && " Your attendance is optional, but it helps to know when you're free."}
+          {event.respondBy && !participant.respondedAt && ` Please respond by ${longDate(event.respondBy)}.`}
         </p>
         {event.description && <p>{event.description}</p>}
       </section>

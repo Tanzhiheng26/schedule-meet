@@ -20,6 +20,7 @@ model Event {
   dayEndMin             Int
   slotMinutes           Int           @default(30) // fixed at 30 for now
   durationMin           Int
+  respondBy             String? // YYYY-MM-DD in the event timezone; reminders stop after it. Null for older events.
   lastReminderAt        DateTime?
   finalSlotStart        DateTime?
   createdAt             DateTime      @default(now())

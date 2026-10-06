@@ -12,8 +12,8 @@ export default function Home() {
         <h1>Find a time that works for everyone</h1>
         <p className="muted">
           Create an event and share personal links with participants. When everyone has replied, book the meeting.
-          Invites, reminders, and the meeting invitation are sent from <strong>your</strong> Outlook: the app writes a
-          prompt, you paste it into ChatGPT Enterprise, and ChatGPT sends it with its Outlook apps.
+          Invites and daily reminders are emailed for you. To book the meeting, the app writes a prompt that you paste
+          into ChatGPT Enterprise, which creates it in <strong>your</strong> Outlook calendar.
         </p>
       </section>
       <CreateEventForm today={today} />

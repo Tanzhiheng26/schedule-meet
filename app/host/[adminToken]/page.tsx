@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { chooseSlot, markReminderSent, sendInvites, sendReminders, toggleRequired } from "@/app/actions";
+import { chooseSlot, sendInvites, sendReminders, toggleRequired } from "@/app/actions";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { CopyButton } from "@/components/CopyButton";
 import { Heatmap } from "@/components/Heatmap";
@@ -10,7 +10,7 @@ import { getBaseUrl } from "@/lib/baseUrl";
 import { purgeExpiredEvents } from "@/lib/cleanup";
 import { prisma } from "@/lib/db";
 import { emailConfigured } from "@/lib/mailer";
-import { meetingPrompt, participantLink, reminderPrompt } from "@/lib/prompts";
+import { meetingPrompt, participantLink } from "@/lib/prompts";
 import {
   addMinutes,
   availableFor,
@@ -18,8 +18,10 @@ import {
   formatSlot,
   groupBySlot,
   hhmm,
+  longDate,
   rankSlots,
   REMINDER_HOUR,
+  respondByPassed,
 } from "@/lib/slots";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +50,7 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
   const pending = participants.filter((p) => !p.respondedAt);
   const uninvited = participants.filter((p) => !p.invitedAt);
   const toRemind = pending.filter((p) => p.invitedAt);
+  const remindersStopped = respondByPassed(event, new Date());
   const pendingRequired = pending.filter((p) => p.required);
   const requiredIds = new Set(participants.filter((p) => p.required).map((p) => p.id));
   const requiredTotal = requiredIds.size;
@@ -77,6 +80,7 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
         <h1>{event.title}</h1>
         <p className="muted">
           {event.durationMin}-minute meeting · times in {tz}
+          {event.respondBy && ` · respond by ${longDate(event.respondBy)}`}
         </p>
         <p className="notice">
           🔒 This is your private host page. Bookmark it; anyone with this link can manage the event.{" "}
@@ -143,20 +147,26 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
         )}
       </section>
 
-      {toRemind.length > 0 && (
-        <PromptCard
-          title={`Send a reminder · ${toRemind.length} haven't responded`}
-          prompt={reminderPrompt(event, toRemind, baseUrl)}
-          done={{ label: "I've sent the reminders", action: markReminderSent.bind(null, adminToken) }}
-          send={canEmail ? { label: "Send reminders now", action: sendReminders.bind(null, adminToken) } : undefined}
-        >
+      {toRemind.length > 0 && remindersStopped && (
+        <p className="muted">
+          The respond-by date ({longDate(event.respondBy!)}) has passed, so reminders have stopped. You can still use{" "}
+          <em>Copy link</em> to chase anyone yourself.
+        </p>
+      )}
+      {toRemind.length > 0 && !remindersStopped && (
+        <section className="card">
+          <h3>Reminders · {toRemind.length} haven&apos;t responded</h3>
           <p className="muted">
             Reminders go only to the people who haven&apos;t responded yet.{" "}
-            {canEmail && `They're emailed automatically every day at ${hhmm(REMINDER_HOUR * 60)} (${tz}). `}
+            {canEmail &&
+              `They're emailed automatically every day at ${hhmm(REMINDER_HOUR * 60)} (${tz})${
+                event.respondBy ? ` until ${longDate(event.respondBy)}` : ""
+              }. `}
             You can also send one now.
             {event.lastReminderAt && ` Last reminder sent ${formatSlot(event.lastReminderAt.toISOString(), tz)}.`}
           </p>
-        </PromptCard>
+          <SendButton label="Send reminders now" action={sendReminders.bind(null, adminToken)} />
+        </section>
       )}
 
       {/* Pick a slot */}

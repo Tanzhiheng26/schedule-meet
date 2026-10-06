@@ -1,4 +1,4 @@
-import { formatSlot } from "./slots";
+import { formatSlot, longDate } from "./slots";
 
 export type PromptEvent = {
   title: string;
@@ -7,6 +7,7 @@ export type PromptEvent = {
   hostEmail: string;
   timezone: string;
   durationMin: number;
+  respondBy: string | null;
 };
 
 export type PromptRecipient = { name: string; email: string; token: string; required?: boolean };
@@ -18,24 +19,6 @@ export type Email = { to: string; subject: string; body: string; link: string };
 export const participantLink = (baseUrl: string, token: string) => `${baseUrl}/e/${token}`;
 
 const firstName = (name: string) => name.split(/\s+/)[0] || name;
-
-function emailBatchPrompt(emails: Email[]): string {
-  const n = emails.length;
-  const header = [
-    `Using the Outlook Email app, send the ${n} email${n === 1 ? "" : "s"} below from my mailbox.`,
-    "",
-    "Rules:",
-    "- Send each email separately, only to the recipient listed for it.",
-    "- Use the subject and body exactly as written. Do not rewrite, summarize, or shorten them, and keep every link unchanged.",
-    "- Send as plain text.",
-    "- For each email, generate a QR code image of the availability link in that email's body and attach it as a PNG file.",
-    "- When you're done, list the recipients you sent to.",
-  ].join("\n");
-  const blocks = emails.map((e, i) =>
-    [`=== Email ${i + 1} of ${n} ===`, `To: ${e.to}`, `Subject: ${e.subject}`, "Body:", e.body].join("\n"),
-  );
-  return [header, ...blocks].join("\n\n");
-}
 
 export function inviteEmails(event: PromptEvent, recipients: PromptRecipient[], baseUrl: string): Email[] {
   return recipients.map((r) => {
@@ -51,7 +34,9 @@ export function inviteEmails(event: PromptEvent, recipients: PromptRecipient[], 
         ...(r.required === false ? ["Your attendance is optional, but it helps to know when you're free."] : []),
         ...(event.description ? ["", event.description] : []),
         "",
-        "Please mark your availability here (it takes about a minute):",
+        event.respondBy
+          ? `Please mark your availability by ${longDate(event.respondBy)} (it takes about a minute):`
+          : "Please mark your availability here (it takes about a minute):",
         link,
         "",
         "This link is personal to you, so please don't forward it.",
@@ -73,7 +58,7 @@ export function reminderEmails(event: PromptEvent, pending: PromptRecipient[], b
       body: [
         `Hi ${firstName(r.name)},`,
         "",
-        `A quick reminder to mark your availability for "${event.title}". I'm still waiting on a few responses before I can book a time.`,
+        `A quick reminder to mark your availability for "${event.title}"${event.respondBy ? ` by ${longDate(event.respondBy)}` : ""}. I'm still waiting on a few responses before I can book a time.`,
         "",
         link,
         "",
@@ -83,9 +68,6 @@ export function reminderEmails(event: PromptEvent, pending: PromptRecipient[], b
     };
   });
 }
-
-export const reminderPrompt = (event: PromptEvent, pending: PromptRecipient[], baseUrl: string) =>
-  emailBatchPrompt(reminderEmails(event, pending, baseUrl));
 
 function meetingBody(event: PromptEvent): string {
   return event.description || `${event.title}, scheduled with the help of schedule-meet.`;
