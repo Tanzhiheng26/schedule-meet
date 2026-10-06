@@ -12,7 +12,8 @@ export type PromptEvent = {
 export type PromptRecipient = { name: string; email: string; token: string; required?: boolean };
 export type PromptAttendee = { name: string; email: string; required?: boolean };
 
-type Email = { to: string; subject: string; body: string };
+/** One personal email; `link` is the recipient's availability link (also in the body), used for the QR code. */
+export type Email = { to: string; subject: string; body: string; link: string };
 
 export const participantLink = (baseUrl: string, token: string) => `${baseUrl}/e/${token}`;
 
@@ -36,10 +37,12 @@ function emailBatchPrompt(emails: Email[]): string {
   return [header, ...blocks].join("\n\n");
 }
 
-export function invitePrompt(event: PromptEvent, recipients: PromptRecipient[], baseUrl: string): string {
-  return emailBatchPrompt(
-    recipients.map((r) => ({
+export function inviteEmails(event: PromptEvent, recipients: PromptRecipient[], baseUrl: string): Email[] {
+  return recipients.map((r) => {
+    const link = participantLink(baseUrl, r.token);
+    return {
       to: r.email,
+      link,
       subject: `When are you free for "${event.title}"?`,
       body: [
         `Hi ${firstName(r.name)},`,
@@ -49,35 +52,40 @@ export function invitePrompt(event: PromptEvent, recipients: PromptRecipient[], 
         ...(event.description ? ["", event.description] : []),
         "",
         "Please mark your availability here (it takes about a minute):",
-        participantLink(baseUrl, r.token),
+        link,
         "",
         "This link is personal to you, so please don't forward it.",
         "",
         "Thanks,",
         event.hostName,
       ].join("\n"),
-    })),
-  );
+    };
+  });
 }
 
-export function reminderPrompt(event: PromptEvent, pending: PromptRecipient[], baseUrl: string): string {
-  return emailBatchPrompt(
-    pending.map((r) => ({
+export function reminderEmails(event: PromptEvent, pending: PromptRecipient[], baseUrl: string): Email[] {
+  return pending.map((r) => {
+    const link = participantLink(baseUrl, r.token);
+    return {
       to: r.email,
+      link,
       subject: `Reminder: your availability for "${event.title}"`,
       body: [
         `Hi ${firstName(r.name)},`,
         "",
         `A quick reminder to mark your availability for "${event.title}". I'm still waiting on a few responses before I can book a time.`,
         "",
-        participantLink(baseUrl, r.token),
+        link,
         "",
         "Thanks,",
         event.hostName,
       ].join("\n"),
-    })),
-  );
+    };
+  });
 }
+
+export const reminderPrompt = (event: PromptEvent, pending: PromptRecipient[], baseUrl: string) =>
+  emailBatchPrompt(reminderEmails(event, pending, baseUrl));
 
 function meetingBody(event: PromptEvent): string {
   return event.description || `${event.title}, scheduled with the help of schedule-meet.`;

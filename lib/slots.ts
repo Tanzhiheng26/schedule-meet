@@ -146,3 +146,25 @@ export function eventEndsAt(event: { dates: string[]; timezone: string }): Date 
   const nextDay = new Date(Date.parse(`${last}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
   return fromZonedTime(`${nextDay}T00:00:00`, event.timezone);
 }
+
+/** Automatic reminders go out daily at this hour, in the event's time zone. */
+export const REMINDER_HOUR = 9;
+
+const localDate = (d: Date, tz: string) => formatInTimeZone(d, tz, "yyyy-MM-dd");
+const reminderTimeOn = (date: string, tz: string) =>
+  fromZonedTime(`${date}T${String(REMINDER_HOUR).padStart(2, "0")}:00:00`, tz);
+
+/**
+ * The most recent daily reminder time at or before `now`, or null if it falls on the day the
+ * event was created (reminders start the next day).
+ */
+export function latestReminderTime(event: { timezone: string; createdAt: Date }, now: Date): Date | null {
+  const tz = event.timezone;
+  const today = localDate(now, tz);
+  let at = reminderTimeOn(today, tz);
+  if (at > now) {
+    const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+    at = reminderTimeOn(yesterday, tz);
+  }
+  return localDate(at, tz) > localDate(event.createdAt, tz) ? at : null;
+}

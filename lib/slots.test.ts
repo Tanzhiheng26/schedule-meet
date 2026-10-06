@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { availableFor, buildGrid, eventEndsAt, groupBySlot, parseDates, parseHHMM, rankSlots } from "./slots";
+import {
+  availableFor,
+  buildGrid,
+  eventEndsAt,
+  groupBySlot,
+  latestReminderTime,
+  parseDates,
+  parseHHMM,
+  rankSlots,
+} from "./slots";
 
 describe("parseDates", () => {
   it("sorts and dedupes non-consecutive dates", () => {
@@ -103,5 +112,26 @@ describe("eventEndsAt", () => {
   it("is midnight after the last candidate day, in the event timezone", () => {
     const event = { dates: ["2026-10-09", "2026-10-05"], timezone: "Asia/Singapore" };
     expect(eventEndsAt(event).toISOString()).toBe("2026-10-09T16:00:00.000Z"); // 10 Oct 00:00 SGT
+  });
+});
+
+describe("latestReminderTime", () => {
+  const tz = "Asia/Singapore"; // UTC+8, so 09:00 local is 01:00Z
+  const event = { timezone: tz, createdAt: new Date("2026-10-05T06:00:00Z") }; // 14:00 on 5 Oct, local
+
+  it("sends nothing on the day the event was created", () => {
+    expect(latestReminderTime(event, new Date("2026-10-05T15:00:00Z"))).toBeNull(); // 23:00 on 5 Oct
+    expect(latestReminderTime(event, new Date("2026-10-06T00:59:00Z"))).toBeNull(); // 08:59 on 6 Oct
+  });
+
+  it("is 9am local on each following day", () => {
+    expect(latestReminderTime(event, new Date("2026-10-06T01:00:00Z"))?.toISOString()).toBe("2026-10-06T01:00:00.000Z");
+    expect(latestReminderTime(event, new Date("2026-10-07T00:30:00Z"))?.toISOString()).toBe("2026-10-06T01:00:00.000Z");
+    expect(latestReminderTime(event, new Date("2026-10-07T03:00:00Z"))?.toISOString()).toBe("2026-10-07T01:00:00.000Z");
+  });
+
+  it("starts the next day even when created before 9am", () => {
+    const early = { timezone: tz, createdAt: new Date("2026-10-04T23:00:00Z") }; // 07:00 on 5 Oct, local
+    expect(latestReminderTime(early, new Date("2026-10-05T02:00:00Z"))).toBeNull();
   });
 });
