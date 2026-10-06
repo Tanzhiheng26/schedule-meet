@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { chooseSlot, sendInvites, sendReminders, toggleRequired } from "@/app/actions";
+import { chooseSlot, sendCalendarInvite, sendInvites, sendReminders, toggleRequired } from "@/app/actions";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { CopyButton } from "@/components/CopyButton";
 import { Heatmap } from "@/components/Heatmap";
-import { PromptCard } from "@/components/PromptCard";
 import { SendButton } from "@/components/SendButton";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { purgeExpiredEvents } from "@/lib/cleanup";
 import { prisma } from "@/lib/db";
 import { emailConfigured } from "@/lib/mailer";
-import { meetingPrompt, participantLink } from "@/lib/prompts";
+import { participantLink } from "@/lib/emails";
 import {
   addMinutes,
   availableFor,
@@ -50,7 +49,8 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
   const pending = participants.filter((p) => !p.respondedAt);
   const uninvited = participants.filter((p) => !p.invitedAt);
   const toRemind = pending.filter((p) => p.invitedAt);
-  const remindersStopped = respondByPassed(event, new Date());
+  const booked = event.calendarSentAt !== null;
+  const remindersStopped = booked || respondByPassed(event, new Date());
   const pendingRequired = pending.filter((p) => p.required);
   const requiredIds = new Set(participants.filter((p) => p.required).map((p) => p.id));
   const requiredTotal = requiredIds.size;
@@ -95,7 +95,7 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
           Replies come to you.
         </p>
       ) : (
-        <section className="card prompt-card" data-tone="attention">
+        <section className="card" data-tone="attention">
           <h3>
             {uninvited.length === participants.length
               ? "Invites haven't been sent"
@@ -149,8 +149,10 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
 
       {toRemind.length > 0 && remindersStopped && (
         <p className="muted">
-          The respond-by date ({longDate(event.respondBy!)}) has passed, so reminders have stopped. You can still use{" "}
-          <em>Copy link</em> to chase anyone yourself.
+          {booked
+            ? "The calendar invitation has gone out, so reminders have stopped."
+            : `The respond-by date (${longDate(event.respondBy!)}) has passed, so reminders have stopped.`}{" "}
+          You can still use <em>Copy link</em> to chase anyone yourself.
         </p>
       )}
       {toRemind.length > 0 && !remindersStopped && (
@@ -161,7 +163,7 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
             {canEmail &&
               `They're emailed automatically every day at ${hhmm(REMINDER_HOUR * 60)} (${tz})${
                 event.respondBy ? ` until ${longDate(event.respondBy)}` : ""
-              }. `}
+              }, and stop once you send the calendar invitation. `}
             You can also send one now.
             {event.lastReminderAt && ` Last reminder sent ${formatSlot(event.lastReminderAt.toISOString(), tz)}.`}
           </p>
@@ -212,12 +214,10 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
 
       {/* Book */}
       {chosen && (
-        <PromptCard
-          title={`Book the meeting: ${formatSlot(chosen.start, tz)}–${formatSlot(chosen.end, tz, "HH:mm")}`}
-          tone="attention"
-          prompt={meetingPrompt(event, chosen, participants)}
-        >
-          <p className="muted">Paste this into ChatGPT to create the meeting and invite everyone.</p>
+        <section className="card" data-tone="attention">
+          <h3>
+            Book the meeting: {formatSlot(chosen.start, tz)}–{formatSlot(chosen.end, tz, "HH:mm")}
+          </h3>
           {(() => {
             const missing = missingFrom(chosen.available);
             return (
@@ -231,7 +231,38 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
               </>
             );
           })()}
-        </PromptCard>
+          {(() => {
+            const sentFor = event.calendarSlotStart?.toISOString();
+            const sentAt = event.calendarSentAt && formatSlot(event.calendarSentAt.toISOString(), tz);
+            return (
+              <>
+                {!sentFor ? (
+                  <p className="muted">
+                    Email everyone a calendar invitation they can accept. You&apos;re the organizer, so replies come to
+                    you, and you get a copy.
+                  </p>
+                ) : sentFor === chosen.start ? (
+                  <p className="success">📅 Calendar invitation for this time sent {sentAt}.</p>
+                ) : (
+                  <p className="error">
+                    The calendar invitation sent {sentAt} was for {formatSlot(sentFor, tz)}. Send an update to move it
+                    to this time in everyone&apos;s calendar.
+                  </p>
+                )}
+                <SendButton
+                  label={
+                    !sentFor
+                      ? "Send calendar invitation"
+                      : sentFor === chosen.start
+                        ? "Resend calendar invitation"
+                        : "Send updated invitation"
+                  }
+                  action={sendCalendarInvite.bind(null, adminToken, chosen.start)}
+                />
+              </>
+            );
+          })()}
+        </section>
       )}
 
       <section className="card">

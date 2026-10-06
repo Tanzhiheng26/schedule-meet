@@ -23,6 +23,9 @@ model Event {
   respondBy             String? // YYYY-MM-DD in the event timezone; reminders stop after it. Null for older events.
   lastReminderAt        DateTime?
   finalSlotStart        DateTime?
+  calendarSentAt        DateTime? // when the calendar invitation was last emailed
+  calendarSlotStart     DateTime? // the time that invitation was for
+  calendarSequence      Int           @default(0) // iCalendar SEQUENCE for the next send; goes up each time
   createdAt             DateTime      @default(now())
   expiresAt             DateTime // midnight after the last candidate day; the event is deleted then
   participants          Participant[]

@@ -190,12 +190,6 @@ input[type="checkbox"] {
 input[type="number"] {
   max-width: 6rem;
 }
-textarea.prompt {
-  font: 0.85rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
-  margin: 0.5rem 0 0.75rem;
-  resize: vertical;
-}
-
 button,
 .button {
   font: inherit;
@@ -384,8 +378,7 @@ button.small {
   /* iOS Safari zooms into fields with text under 16px */
   input,
   select,
-  textarea,
-  textarea.prompt {
+  textarea {
     font-size: 16px;
   }
 }
