@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-/** Polls the server so the dashboard picks up new responses and reminder due times. */
+/** Polls the server so the dashboard picks up new responses without a manual reload. */
 export function AutoRefresh({ seconds = 30 }: { seconds?: number }) {
   const router = useRouter();
   useEffect(() => {
