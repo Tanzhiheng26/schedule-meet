@@ -11,7 +11,16 @@ import { purgeExpiredEvents } from "@/lib/cleanup";
 import { prisma } from "@/lib/db";
 import { emailConfigured } from "@/lib/mailer";
 import { meetingPrompt, participantLink, reminderPrompt } from "@/lib/prompts";
-import { addMinutes, availableFor, buildGrid, formatSlot, groupBySlot, rankSlots } from "@/lib/slots";
+import {
+  addMinutes,
+  availableFor,
+  buildGrid,
+  formatSlot,
+  groupBySlot,
+  hhmm,
+  rankSlots,
+  REMINDER_HOUR,
+} from "@/lib/slots";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Host dashboard · schedule-meet", robots: { index: false } };
@@ -142,7 +151,9 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
           send={canEmail ? { label: "Send reminders now", action: sendReminders.bind(null, adminToken) } : undefined}
         >
           <p className="muted">
-            Reminders go only to the people who haven&apos;t responded yet. Send them whenever you like.
+            Reminders go only to the people who haven&apos;t responded yet.{" "}
+            {canEmail && `They're emailed automatically every day at ${hhmm(REMINDER_HOUR * 60)} (${tz}). `}
+            You can also send one now.
             {event.lastReminderAt && ` Last reminder sent ${formatSlot(event.lastReminderAt.toISOString(), tz)}.`}
           </p>
         </PromptCard>

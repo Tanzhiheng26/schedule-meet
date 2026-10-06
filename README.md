@@ -2,7 +2,7 @@
 
 A when2meet-style scheduler. The host creates an event and participants mark their availability on a grid. The app tracks who has responded and finds the best time.
 
-**Invites** are emailed automatically from a Gmail account when the event is created (see [Email setup](#email-setup)). **Reminders** can be sent the same way with one click. The **meeting invitation** goes out from the **host's own Outlook**: the app writes a ready-to-paste prompt, the host pastes it into **ChatGPT Enterprise**, and ChatGPT uses its Outlook Calendar app to create the meeting. Reminders also have a ChatGPT prompt as a fallback.
+**Invites** are emailed automatically from a Gmail account when the event is created (see [Email setup](#email-setup)). **Reminders** are emailed automatically every day at 9am (event time zone), starting the day after the event is created, to invited participants who haven't responded. The host can also send one at any time. The **meeting invitation** goes out from the **host's own Outlook**: the app writes a ready-to-paste prompt, the host pastes it into **ChatGPT Enterprise**, and ChatGPT uses its Outlook Calendar app to create the meeting. Reminders also have a ChatGPT prompt as a fallback.
 
 ## How it works
 
@@ -10,7 +10,7 @@ A when2meet-style scheduler. The host creates an event and participants mark the
 2. **Host dashboard** (`/host/<secret>`, bookmark it):
    - **Invites**: each participant was emailed their personal link (with a QR code) when the event was created. If any didn't go out, the dashboard lists them with a *Send invites* button that retries only those people.
    - **Responses**: ✅/⏳ per participant, marked Required or Optional (you can switch each one). The page refreshes every 30s.
-   - **Send a reminder**: appears while any invited participant hasn't responded. Send it whenever you like, with *Send reminders now* or the ChatGPT prompt. It goes only to non-responders.
+   - **Send a reminder**: appears while any invited participant hasn't responded. Reminders go out automatically at 9am every day from the day after creation. You can also send one whenever you like, with *Send reminders now* or the ChatGPT prompt. Either way, it goes only to non-responders.
    - **Best times**: meeting slots ranked by how many required participants are free, then how many people overall. You can pick one once all required participants have responded. Optional participants never block scheduling.
    - **Book the meeting**: appears once all required participants have responded, with the best time preselected. It gives a ChatGPT prompt to create the Outlook meeting (listing required and optional attendees separately).
 3. **Participants** (`/e/<token>`): click or drag to mark free times, then save. They can come back and edit.
@@ -26,6 +26,8 @@ Set `GMAIL_USER` and `GMAIL_APP_PASSWORD` in `.env` and restart. The account nee
 - Each email is sent separately with a QR code of the participant's link attached.
 - If some sends fail, the rest still go out. Each participant's invite is recorded, so retrying emails only the people who missed out.
 - Gmail allows about 500 recipients a day.
+- Daily reminders: on a normal server (Docker, `next start`), a timer inside the server (`instrumentation.ts`) checks every minute, so the server must be running at 9am. If it's down then, the reminder goes out when it's back that day. On Vercel, Vercel Cron does the check instead (see [Deploying](#deploying)). Each event gets at most one reminder per day: a manual one sent after 9am counts too. A failed daily send isn't retried until the next day.
+- Reminder links are built from `BASE_URL`, because there's no request to take the host from. On Vercel it falls back to the project's production domain. Elsewhere, **set `BASE_URL` in production**, or the links point at `http://localhost:3000`.
 
 ## Running locally
 
@@ -48,7 +50,16 @@ If you have Node 22 locally instead: `cp .env.example .env && docker compose up 
 
 ## Deploying
 
-Participant links must be reachable by participants, so deploy for real use (e.g. Vercel + Neon/Supabase Postgres). Set `DATABASE_URL`, and run `npx prisma migrate deploy` once. Links use the request's host. Set `BASE_URL` to override.
+Participant links must be reachable by participants, so deploy for real use (e.g. Vercel + Neon/Supabase Postgres). Set `DATABASE_URL`, `BASE_URL` (used in daily reminder links), and the Gmail settings, and run `npx prisma migrate deploy` once.
+
+**On Vercel**, daily reminders run as a Vercel Cron Job that calls `/api/cron/reminders` (configured in `vercel.json`):
+
+- Set `CRON_SECRET` to a random string. Vercel sends it with each cron call, and the endpoint rejects calls without it.
+- The schedule is `0 1 * * *`: once a day at 01:00 UTC, which is 9am in Singapore. Vercel's Hobby plan allows only daily cron jobs and may run them any time within that hour, so reminders arrive between 9:00 and 9:59 Singapore time. Hosts in other time zones get theirs at the next run after their 9am.
+- On the Pro plan, change the schedule to `0 * * * *` (hourly) so every time zone gets its reminder in its own 9am hour.
+- Cron jobs only run on the production deployment.
+
+**On a long-running server** (Docker, `next start`, Railway, Fly), the in-server timer handles reminders and `vercel.json` is ignored.
 
 ## Code map
 
@@ -60,4 +71,5 @@ Participant links must be reachable by participants, so deploy for real use (e.g
 | `lib/slots.ts` | Time-zone-aware grid and slot ranking |
 | `lib/prompts.ts` | Invite/reminder email text and ChatGPT prompts |
 | `lib/mailer.ts` | Sends email via Gmail SMTP |
+| `lib/reminders.ts` | Daily 9am reminders, triggered by `instrumentation.ts` (in-server timer) or `app/api/cron/reminders` (Vercel Cron) |
 | `lib/participants.ts` | Parses pasted participant lists |

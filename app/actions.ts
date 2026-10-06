@@ -7,7 +7,8 @@ import { purgeExpiredEvents } from "@/lib/cleanup";
 import { prisma } from "@/lib/db";
 import { emailConfigured, type SendResult, sendEmails } from "@/lib/mailer";
 import { isEmail, parseParticipants } from "@/lib/participants";
-import { inviteEmails, reminderEmails } from "@/lib/prompts";
+import { inviteEmails } from "@/lib/prompts";
+import { remindPending } from "@/lib/reminders";
 import { buildGrid, eventEndsAt, gridSlotSet, isValidTimezone, MAX_DATES, parseDates, parseHHMM } from "@/lib/slots";
 import { newToken } from "@/lib/tokens";
 
@@ -141,17 +142,16 @@ export async function sendInvites(adminToken: string): Promise<SendState> {
   return deliverInvites(adminToken);
 }
 
-/** Emails a reminder to each invited participant who hasn't responded. */
+/** Emails a reminder now to each invited participant who hasn't responded. */
 export async function sendReminders(adminToken: string): Promise<SendState> {
   if (!emailConfigured()) return { error: `${NOT_CONFIGURED} Or use the ChatGPT prompt.` };
   const event = await loadEvent(adminToken);
-  const pending = event.participants.filter((p) => p.invitedAt && !p.respondedAt);
-  if (pending.length === 0) return { error: "There's nobody to remind." };
+  const total = event.participants.filter((p) => p.invitedAt && !p.respondedAt).length;
+  if (total === 0) return { error: "There's nobody to remind." };
 
-  const host = { name: event.hostName, email: event.hostEmail };
-  const result = await sendEmails(host, reminderEmails(event, pending, await getBaseUrl()));
+  const result = await remindPending(event, await getBaseUrl());
   if (result.sent.length) await updateEvent(adminToken, { lastReminderAt: new Date() });
-  return summarize("reminders", pending.length, result);
+  return summarize("reminders", total, result);
 }
 
 export async function chooseSlot(adminToken: string, slotStart: string): Promise<void> {
