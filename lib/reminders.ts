@@ -11,6 +11,7 @@ type ReminderEvent = {
   hostEmail: string;
   timezone: string;
   durationMin: number;
+  respondBy: string | null;
   participants: { name: string; email: string; token: string; invitedAt: Date | null; respondedAt: Date | null }[];
 };
 
@@ -21,8 +22,9 @@ export function remindPending(event: ReminderEvent, baseUrl: string): Promise<Se
 }
 
 /**
- * Sends today's reminder for every event that is due one: it's past the daily reminder hour,
- * someone invited hasn't responded, and no reminder (automatic or manual) went out since then.
+ * Sends today's reminder for every event that is due one: it's past the daily reminder hour, the
+ * respond-by date hasn't passed, someone invited hasn't responded, and no reminder (automatic or
+ * manual) went out since then.
  */
 export async function sendDueReminders(now = new Date()): Promise<void> {
   if (!emailConfigured()) return;

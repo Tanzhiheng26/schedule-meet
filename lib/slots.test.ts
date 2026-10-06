@@ -8,6 +8,7 @@ import {
   parseDates,
   parseHHMM,
   rankSlots,
+  respondByPassed,
 } from "./slots";
 
 describe("parseDates", () => {
@@ -117,7 +118,7 @@ describe("eventEndsAt", () => {
 
 describe("latestReminderTime", () => {
   const tz = "Asia/Singapore"; // UTC+8, so 09:00 local is 01:00Z
-  const event = { timezone: tz, createdAt: new Date("2026-10-05T06:00:00Z") }; // 14:00 on 5 Oct, local
+  const event = { timezone: tz, createdAt: new Date("2026-10-05T06:00:00Z"), respondBy: null }; // 14:00 on 5 Oct, local
 
   it("sends nothing on the day the event was created", () => {
     expect(latestReminderTime(event, new Date("2026-10-05T15:00:00Z"))).toBeNull(); // 23:00 on 5 Oct
@@ -131,7 +132,23 @@ describe("latestReminderTime", () => {
   });
 
   it("starts the next day even when created before 9am", () => {
-    const early = { timezone: tz, createdAt: new Date("2026-10-04T23:00:00Z") }; // 07:00 on 5 Oct, local
+    const early = { ...event, createdAt: new Date("2026-10-04T23:00:00Z") }; // 07:00 on 5 Oct, local
     expect(latestReminderTime(early, new Date("2026-10-05T02:00:00Z"))).toBeNull();
+  });
+
+  it("sends the last reminder on the respond-by day, then stops", () => {
+    const dated = { ...event, respondBy: "2026-10-07" };
+    expect(latestReminderTime(dated, new Date("2026-10-07T03:00:00Z"))?.toISOString()).toBe("2026-10-07T01:00:00.000Z");
+    expect(latestReminderTime(dated, new Date("2026-10-08T03:00:00Z"))).toBeNull(); // 9am on 8 Oct is past it
+    expect(latestReminderTime(dated, new Date("2026-10-08T00:30:00Z"))?.toISOString()).toBe("2026-10-07T01:00:00.000Z");
+  });
+});
+
+describe("respondByPassed", () => {
+  const event = { timezone: "Asia/Singapore", respondBy: "2026-10-07" };
+  it("is false through the end of the respond-by day in the event's time zone", () => {
+    expect(respondByPassed(event, new Date("2026-10-07T15:59:00Z"))).toBe(false); // 23:59 on 7 Oct, local
+    expect(respondByPassed(event, new Date("2026-10-07T16:00:00Z"))).toBe(true); // 00:00 on 8 Oct, local
+    expect(respondByPassed({ ...event, respondBy: null }, new Date("2030-01-01T00:00:00Z"))).toBe(false);
   });
 });

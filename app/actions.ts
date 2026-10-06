@@ -9,7 +9,18 @@ import { emailConfigured, type SendResult, sendEmails } from "@/lib/mailer";
 import { isEmail, parseParticipants } from "@/lib/participants";
 import { inviteEmails } from "@/lib/prompts";
 import { remindPending } from "@/lib/reminders";
-import { buildGrid, eventEndsAt, gridSlotSet, isValidTimezone, MAX_DATES, parseDates, parseHHMM } from "@/lib/slots";
+import {
+  buildGrid,
+  eventEndsAt,
+  gridSlotSet,
+  isValidTimezone,
+  localDate,
+  longDate,
+  MAX_DATES,
+  parseDates,
+  parseHHMM,
+  respondByPassed,
+} from "@/lib/slots";
 import { newToken } from "@/lib/tokens";
 
 export type CreateEventState = { error?: string };
@@ -25,6 +36,7 @@ export async function createEvent(_prev: CreateEventState, form: FormData): Prom
   const hostEmail = str("hostEmail").toLowerCase();
   const timezone = str("timezone");
   const dates = parseDates(str("dates"));
+  const respondBy = parseDates(str("respondBy"))?.[0];
   const dayStartMin = parseHHMM(str("dayStart"));
   const dayEndMin = parseHHMM(str("dayEnd"));
   const durationMin = int("durationMin");
@@ -45,6 +57,10 @@ export async function createEvent(_prev: CreateEventState, form: FormData): Prom
   if (!dates) return { error: "Some of the selected dates are invalid." };
   if (dates.length === 0) return { error: "Pick at least one day for the meeting." };
   if (dates.length > MAX_DATES) return { error: `Pick at most ${MAX_DATES} days.` };
+  if (!respondBy) return { error: "Pick a respond-by date." };
+  if (respondBy < localDate(new Date(), timezone)) return { error: "The respond-by date can't be in the past." };
+  if (respondBy > dates.at(-1)!)
+    return { error: `The respond-by date must be on or before the last possible day (${longDate(dates.at(-1)!)}).` };
   if (dayStartMin === null || dayEndMin === null || dayEndMin <= dayStartMin)
     return { error: "The daily end time must be after the start time." };
   if (!(durationMin >= 15 && durationMin <= dayEndMin - dayStartMin))
@@ -67,6 +83,7 @@ export async function createEvent(_prev: CreateEventState, form: FormData): Prom
       dayStartMin,
       dayEndMin,
       durationMin,
+      respondBy,
       participants: { create: participants.map((p) => ({ ...p, token: newToken() })) },
     },
   });
@@ -96,10 +113,6 @@ export async function saveAvailability(token: string, slots: string[]): Promise<
 async function updateEvent(adminToken: string, data: Parameters<typeof prisma.event.update>[0]["data"]) {
   await prisma.event.update({ where: { adminToken }, data });
   revalidatePath(`/host/${adminToken}`);
-}
-
-export async function markReminderSent(adminToken: string): Promise<void> {
-  await updateEvent(adminToken, { lastReminderAt: new Date() });
 }
 
 export type SendState = { message?: string; error?: string };
@@ -144,8 +157,9 @@ export async function sendInvites(adminToken: string): Promise<SendState> {
 
 /** Emails a reminder now to each invited participant who hasn't responded. */
 export async function sendReminders(adminToken: string): Promise<SendState> {
-  if (!emailConfigured()) return { error: `${NOT_CONFIGURED} Or use the ChatGPT prompt.` };
+  if (!emailConfigured()) return { error: NOT_CONFIGURED };
   const event = await loadEvent(adminToken);
+  if (respondByPassed(event, new Date())) return { error: "The respond-by date has passed, so reminders have stopped." };
   const total = event.participants.filter((p) => p.invitedAt && !p.respondedAt).length;
   if (total === 0) return { error: "There's nobody to remind." };
 

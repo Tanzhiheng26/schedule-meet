@@ -38,6 +38,11 @@ export function CreateEventForm({ today }: { today: string }) {
           <DatePicker name="dates" today={today} max={MAX_DATES} />
         </div>
 
+        <label className="span-2">
+          Respond by <span className="muted">(shown in the emails; daily reminders stop after this day)</span>
+          <input name="respondBy" type="date" required min={today} />
+        </label>
+
         <label>
           Earliest time
           <input name="dayStart" type="time" required defaultValue="09:00" step={900} />
