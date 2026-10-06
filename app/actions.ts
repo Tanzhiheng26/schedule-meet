@@ -2,9 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getBaseUrl } from "@/lib/baseUrl";
 import { purgeExpiredEvents } from "@/lib/cleanup";
 import { prisma } from "@/lib/db";
+import { emailConfigured, type SendResult, sendEmails } from "@/lib/mailer";
 import { isEmail, parseParticipants } from "@/lib/participants";
+import { inviteEmails, reminderEmails } from "@/lib/prompts";
 import { buildGrid, eventEndsAt, gridSlotSet, isValidTimezone, MAX_DATES, parseDates, parseHHMM } from "@/lib/slots";
 import { newToken } from "@/lib/tokens";
 
@@ -66,6 +69,8 @@ export async function createEvent(_prev: CreateEventState, form: FormData): Prom
       participants: { create: participants.map((p) => ({ ...p, token: newToken() })) },
     },
   });
+  // Anyone who couldn't be emailed is listed on the host page, with a button to retry.
+  await deliverInvites(event.adminToken);
   redirect(`/host/${event.adminToken}`);
 }
 
@@ -92,12 +97,61 @@ async function updateEvent(adminToken: string, data: Parameters<typeof prisma.ev
   revalidatePath(`/host/${adminToken}`);
 }
 
-export async function markInvitesSent(adminToken: string): Promise<void> {
-  await updateEvent(adminToken, { invitesSentAt: new Date() });
-}
-
 export async function markReminderSent(adminToken: string): Promise<void> {
   await updateEvent(adminToken, { lastReminderAt: new Date() });
+}
+
+export type SendState = { message?: string; error?: string };
+
+const NOT_CONFIGURED = "Automatic email isn't set up: set GMAIL_USER and GMAIL_APP_PASSWORD.";
+
+async function loadEvent(adminToken: string) {
+  const event = await prisma.event.findUnique({
+    where: { adminToken },
+    include: { participants: { orderBy: { name: "asc" } } },
+  });
+  if (!event) throw new Error("Unknown event.");
+  return event;
+}
+
+function summarize(kind: string, total: number, { sent, failed }: SendResult): SendState {
+  const sentMsg = sent.length ? `Sent ${kind} to ${sent.length} of ${total}.` : "";
+  return failed.length ? { error: `${sentMsg} Couldn't email ${failed.join(", ")}.`.trim() } : { message: sentMsg };
+}
+
+/** Emails an invite to each participant who hasn't had one yet, and records who got it. */
+async function deliverInvites(adminToken: string): Promise<SendState> {
+  if (!emailConfigured()) return { error: NOT_CONFIGURED };
+  const event = await loadEvent(adminToken);
+  const uninvited = event.participants.filter((p) => !p.invitedAt);
+  if (uninvited.length === 0) return { message: "Everyone has been invited." };
+
+  const host = { name: event.hostName, email: event.hostEmail };
+  const result = await sendEmails(host, inviteEmails(event, uninvited, await getBaseUrl()));
+  await prisma.participant.updateMany({
+    where: { eventId: event.id, email: { in: result.sent } },
+    data: { invitedAt: new Date() },
+  });
+  revalidatePath(`/host/${adminToken}`);
+  return summarize("invites", uninvited.length, result);
+}
+
+/** Retries invites for anyone the automatic send on event creation missed. */
+export async function sendInvites(adminToken: string): Promise<SendState> {
+  return deliverInvites(adminToken);
+}
+
+/** Emails a reminder to each invited participant who hasn't responded. */
+export async function sendReminders(adminToken: string): Promise<SendState> {
+  if (!emailConfigured()) return { error: `${NOT_CONFIGURED} Or use the ChatGPT prompt.` };
+  const event = await loadEvent(adminToken);
+  const pending = event.participants.filter((p) => p.invitedAt && !p.respondedAt);
+  if (pending.length === 0) return { error: "There's nobody to remind." };
+
+  const host = { name: event.hostName, email: event.hostEmail };
+  const result = await sendEmails(host, reminderEmails(event, pending, await getBaseUrl()));
+  if (result.sent.length) await updateEvent(adminToken, { lastReminderAt: new Date() });
+  return summarize("reminders", pending.length, result);
 }
 
 export async function chooseSlot(adminToken: string, slotStart: string): Promise<void> {

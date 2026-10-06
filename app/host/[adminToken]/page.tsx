@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { chooseSlot, markInvitesSent, markReminderSent, toggleRequired } from "@/app/actions";
+import { chooseSlot, markReminderSent, sendInvites, sendReminders, toggleRequired } from "@/app/actions";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { CopyButton } from "@/components/CopyButton";
 import { Heatmap } from "@/components/Heatmap";
 import { PromptCard } from "@/components/PromptCard";
+import { SendButton } from "@/components/SendButton";
 import { getBaseUrl } from "@/lib/baseUrl";
 import { purgeExpiredEvents } from "@/lib/cleanup";
 import { prisma } from "@/lib/db";
-import { invitePrompt, meetingPrompt, participantLink, reminderPrompt } from "@/lib/prompts";
+import { emailConfigured } from "@/lib/mailer";
+import { meetingPrompt, participantLink, reminderPrompt } from "@/lib/prompts";
 import { addMinutes, availableFor, buildGrid, formatSlot, groupBySlot, rankSlots } from "@/lib/slots";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +28,7 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
   if (!event) notFound();
 
   const baseUrl = await getBaseUrl();
+  const canEmail = emailConfigured();
   const tz = event.timezone;
   const { participants } = event;
   const grid = buildGrid(event);
@@ -34,6 +37,8 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
   );
   const names = Object.fromEntries(participants.map((p) => [p.id, p.name]));
   const pending = participants.filter((p) => !p.respondedAt);
+  const uninvited = participants.filter((p) => !p.invitedAt);
+  const toRemind = pending.filter((p) => p.invitedAt);
   const pendingRequired = pending.filter((p) => p.required);
   const requiredIds = new Set(participants.filter((p) => p.required).map((p) => p.id));
   const requiredTotal = requiredIds.size;
@@ -70,26 +75,25 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
         </p>
       </section>
 
-      {/* Step 1: invites */}
-      {!event.invitesSentAt ? (
-        <PromptCard
-          title="Step 1 · Send the invites"
-          tone="attention"
-          prompt={invitePrompt(event, participants, baseUrl)}
-          done={{ label: "I've sent the invites", action: markInvitesSent.bind(null, adminToken) }}
-        >
-          <p className="muted">
-            Copy this prompt into ChatGPT Enterprise. It sends each participant their personal link from your Outlook.
-            Then mark the invites as sent to get the reminder prompt.
-          </p>
-        </PromptCard>
+      {/* Invites are emailed when the event is created. */}
+      {uninvited.length === 0 ? (
+        <p className="success">
+          ✅ Invites emailed to {participants.length === 1 ? "the participant" : `all ${participants.length} participants`}.
+          Replies come to you.
+        </p>
       ) : (
-        <details className="card">
-          <summary>
-            ✅ Invites sent {formatSlot(event.invitesSentAt.toISOString(), tz)}. Show the invite prompt again
-          </summary>
-          <textarea className="prompt" readOnly rows={10} value={invitePrompt(event, participants, baseUrl)} />
-        </details>
+        <section className="card prompt-card" data-tone="attention">
+          <h3>
+            {uninvited.length === participants.length
+              ? "Invites haven't been sent"
+              : `${uninvited.length} invite${uninvited.length === 1 ? "" : "s"} didn't go out`}
+          </h3>
+          <p className="muted">
+            Not emailed yet: {nameList(uninvited)}. Try again, or use <em>Copy link</em> below to send someone their
+            link yourself.
+          </p>
+          <SendButton label="Send invites" action={sendInvites.bind(null, adminToken)} />
+        </section>
       )}
 
       {/* Responses + reminders */}
@@ -130,20 +134,21 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
         )}
       </section>
 
-      {event.invitesSentAt && pending.length > 0 && (
+      {toRemind.length > 0 && (
         <PromptCard
-          title={`Send a reminder · ${pending.length} haven't responded`}
-          prompt={reminderPrompt(event, pending, baseUrl)}
+          title={`Send a reminder · ${toRemind.length} haven't responded`}
+          prompt={reminderPrompt(event, toRemind, baseUrl)}
           done={{ label: "I've sent the reminders", action: markReminderSent.bind(null, adminToken) }}
+          send={canEmail ? { label: "Send reminders now", action: sendReminders.bind(null, adminToken) } : undefined}
         >
           <p className="muted">
-            This prompt includes only the people who haven&apos;t responded yet. Send it whenever you like.
+            Reminders go only to the people who haven&apos;t responded yet. Send them whenever you like.
             {event.lastReminderAt && ` Last reminder sent ${formatSlot(event.lastReminderAt.toISOString(), tz)}.`}
           </p>
         </PromptCard>
       )}
 
-      {/* Step 2: pick a slot */}
+      {/* Pick a slot */}
       <section className="card">
         <h2>Best times</h2>
         {!canSchedule && (
@@ -184,10 +189,10 @@ export default async function HostPage({ params }: { params: Promise<{ adminToke
         )}
       </section>
 
-      {/* Step 2: book */}
+      {/* Book */}
       {chosen && (
         <PromptCard
-          title={`Step 2 · Book the meeting: ${formatSlot(chosen.start, tz)}–${formatSlot(chosen.end, tz, "HH:mm")}`}
+          title={`Book the meeting: ${formatSlot(chosen.start, tz)}–${formatSlot(chosen.end, tz, "HH:mm")}`}
           tone="attention"
           prompt={meetingPrompt(event, chosen, participants)}
         >

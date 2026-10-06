@@ -84,7 +84,7 @@ export function CreateEventForm({ today }: { today: string }) {
       )}
       <div>
         <button className="primary" type="submit" disabled={pending}>
-          {pending ? "Creating…" : "Create event"}
+          {pending ? "Creating and sending invites…" : "Create event and send invites"}
         </button>
       </div>
     </form>

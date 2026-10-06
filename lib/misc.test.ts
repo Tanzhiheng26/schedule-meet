@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseParticipants } from "./participants";
-import { invitePrompt, meetingPrompt, reminderPrompt } from "./prompts";
+import { inviteEmails, meetingPrompt, reminderPrompt } from "./prompts";
 
 describe("parseParticipants", () => {
   it("handles Outlook-style lists, bare emails, duplicates, and invalid entries", () => {
@@ -21,14 +21,15 @@ describe("prompts", () => {
   const alice = { name: "Alice Lee", email: "alice@corp.com", token: "tokA" };
   const bob = { name: "bob", email: "bob@corp.com", token: "tokB" };
 
-  it("invite prompt has one email per recipient with their personal link", () => {
-    const p = invitePrompt(event, [alice, bob], "https://app.test");
-    expect(p).toContain("send the 2 emails below");
-    expect(p).toContain("generate a QR code image of the availability link");
-    expect(p).toContain("To: alice@corp.com");
-    expect(p).toContain("Hi Alice,");
-    expect(p).toContain("https://app.test/e/tokA");
-    expect(p).toContain("https://app.test/e/tokB");
+  it("invite emails are personal: one per recipient, with their own link for the QR code", () => {
+    const emails = inviteEmails(event, [alice, bob], "https://app.test");
+    expect(emails.map((e) => [e.to, e.link])).toEqual([
+      ["alice@corp.com", "https://app.test/e/tokA"],
+      ["bob@corp.com", "https://app.test/e/tokB"],
+    ]);
+    expect(emails[0].body).toContain("Hi Alice,");
+    expect(emails[0].body).toContain("https://app.test/e/tokA");
+    expect(emails[0].body).not.toContain("tokB");
   });
 
   it("reminder prompt only includes who it is given", () => {
@@ -53,8 +54,8 @@ describe("prompts", () => {
     const p = meetingPrompt(event, slot, [alice, optionalBob]);
     expect(p).toContain("Required attendees: Zhi Heng <zh@corp.com>; Alice Lee <alice@corp.com>\n");
     expect(p).toContain("Optional attendees: bob <bob@corp.com>");
-    const invite = invitePrompt(event, [alice, optionalBob], "https://app.test");
-    expect(invite.match(/attendance is optional/g)).toHaveLength(1);
+    const invites = inviteEmails(event, [alice, optionalBob], "https://app.test");
+    expect(invites.map((e) => e.body.includes("attendance is optional"))).toEqual([false, true]);
   });
 
   it("lists the host once, as required, even if they added themselves as optional", () => {

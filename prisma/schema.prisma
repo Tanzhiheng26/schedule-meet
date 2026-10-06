@@ -20,7 +20,6 @@ model Event {
   dayEndMin             Int
   slotMinutes           Int           @default(30) // fixed at 30 for now
   durationMin           Int
-  invitesSentAt         DateTime?
   lastReminderAt        DateTime?
   finalSlotStart        DateTime?
   createdAt             DateTime      @default(now())
@@ -38,6 +37,7 @@ model Participant {
   email        String
   token        String         @unique
   required     Boolean        @default(true) // optional participants don't block scheduling
+  invitedAt    DateTime? // when the invite email was sent; null if it hasn't gone out yet
   respondedAt  DateTime?
   availability Availability[]
 
