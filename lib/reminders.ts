@@ -1,7 +1,7 @@
 import { configuredBaseUrl } from "./baseUrl";
 import { prisma } from "./db";
 import { emailConfigured, type SendResult, sendEmails } from "./mailer";
-import { reminderEmails } from "./prompts";
+import { reminderEmails } from "./emails";
 import { latestReminderTime } from "./slots";
 
 type ReminderEvent = {
@@ -23,7 +23,7 @@ export function remindPending(event: ReminderEvent, baseUrl: string): Promise<Se
 
 /**
  * Sends today's reminder for every event that is due one: it's past the daily reminder hour, the
- * respond-by date hasn't passed, someone invited hasn't responded, and no reminder (automatic or
+ * respond-by date hasn't passed, no calendar invitation has gone out, someone invited hasn't responded, and no reminder (automatic or
  * manual) went out since then.
  */
 export async function sendDueReminders(now = new Date()): Promise<void> {
@@ -31,6 +31,7 @@ export async function sendDueReminders(now = new Date()): Promise<void> {
   const events = await prisma.event.findMany({
     where: {
       expiresAt: { gt: now },
+      calendarSentAt: null, // the meeting is booked
       participants: { some: { invitedAt: { not: null }, respondedAt: null } },
     },
     include: { participants: true },

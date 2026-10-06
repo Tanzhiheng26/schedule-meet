@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "schedule-meet",
-  description: "Find a meeting time, then let ChatGPT book it in Outlook.",
+  description: "Find a meeting time that works for everyone, then send the calendar invitation.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -7,9 +7,11 @@ import { purgeExpiredEvents } from "@/lib/cleanup";
 import { prisma } from "@/lib/db";
 import { emailConfigured, type SendResult, sendEmails } from "@/lib/mailer";
 import { isEmail, parseParticipants } from "@/lib/participants";
-import { inviteEmails } from "@/lib/prompts";
+import { buildIcs } from "@/lib/calendar";
+import { calendarEmails, inviteEmails, meetingAttendees, meetingBody } from "@/lib/emails";
 import { remindPending } from "@/lib/reminders";
 import {
+  addMinutes,
   buildGrid,
   eventEndsAt,
   gridSlotSet,
@@ -159,6 +161,7 @@ export async function sendInvites(adminToken: string): Promise<SendState> {
 export async function sendReminders(adminToken: string): Promise<SendState> {
   if (!emailConfigured()) return { error: NOT_CONFIGURED };
   const event = await loadEvent(adminToken);
+  if (event.calendarSentAt) return { error: "The calendar invitation has gone out, so reminders have stopped." };
   if (respondByPassed(event, new Date())) return { error: "The respond-by date has passed, so reminders have stopped." };
   const total = event.participants.filter((p) => p.invitedAt && !p.respondedAt).length;
   if (total === 0) return { error: "There's nobody to remind." };
@@ -176,6 +179,44 @@ export async function chooseSlot(adminToken: string, slotStart: string): Promise
   if (!event || !gridSlotSet(buildGrid(event)).has(slotStart)) throw new Error("Invalid slot.");
   if (event.participants.length) throw new Error("Wait until all required participants have responded.");
   await updateEvent(adminToken, { finalSlotStart: new Date(slotStart) });
+}
+
+/**
+ * Emails a calendar invitation for `slotStart` to the host and every participant, and makes it the
+ * chosen time. Sending again (e.g. after changing the time) updates the same calendar entry.
+ */
+export async function sendCalendarInvite(adminToken: string, slotStart: string): Promise<SendState> {
+  if (!emailConfigured()) return { error: NOT_CONFIGURED };
+  const event = await loadEvent(adminToken);
+  if (!gridSlotSet(buildGrid(event)).has(slotStart)) return { error: "That time isn't one of the options." };
+  if (event.participants.some((p) => p.required && !p.respondedAt))
+    return { error: "Wait until all required participants have responded." };
+
+  const slot = { start: slotStart, end: addMinutes(slotStart, event.durationMin) };
+  const { required, optional } = meetingAttendees(event, event.participants);
+  const ics = buildIcs({
+    uid: `${event.id}@schedule-meet`,
+    sequence: event.calendarSequence,
+    ...slot,
+    title: event.title,
+    description: meetingBody(event),
+    organizer: { name: event.hostName, email: event.hostEmail },
+    attendees: [
+      ...required.map((a) => ({ ...a, required: true })),
+      ...optional.map((a) => ({ ...a, required: false })),
+    ],
+  });
+  const emails = calendarEmails(event, slot, event.participants, ics, event.calendarSentAt !== null);
+  const result = await sendEmails({ name: event.hostName, email: event.hostEmail }, emails);
+  if (result.sent.length) {
+    await updateEvent(adminToken, {
+      finalSlotStart: new Date(slotStart),
+      calendarSentAt: new Date(),
+      calendarSlotStart: new Date(slotStart),
+      calendarSequence: { increment: 1 },
+    });
+  }
+  return summarize("the calendar invitation", emails.length, result);
 }
 
 export async function toggleRequired(adminToken: string, participantId: string): Promise<void> {
