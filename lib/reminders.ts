@@ -45,8 +45,8 @@ export async function sendDueReminders(now = new Date()): Promise<void> {
       data: { lastReminderAt: now },
     });
     if (count === 0) continue;
-    const { sent, failed } = await remindPending(event, configuredBaseUrl());
-    console.log(`Daily reminder for "${event.title}": sent ${sent.length}, failed ${failed.length}.`);
+    const { sent, failed, error } = await remindPending(event, configuredBaseUrl());
+    console.log(`Daily reminder for "${event.title}": sent ${sent.length}, failed ${failed.length}.`, error ?? "");
   }
 }
 

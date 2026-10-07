@@ -130,9 +130,9 @@ async function loadEvent(adminToken: string) {
   return event;
 }
 
-function summarize(kind: string, total: number, { sent, failed }: SendResult): SendState {
+function summarize(kind: string, total: number, { sent, failed, error }: SendResult): SendState {
   const sentMsg = sent.length ? `Sent ${kind} to ${sent.length} of ${total}.` : "";
-  return failed.length ? { error: `${sentMsg} Couldn't email ${failed.join(", ")}.`.trim() } : { message: sentMsg };
+  return failed.length ? { error: `${sentMsg} Couldn't email ${failed.join(", ")}. ${error ?? ""}`.trim() } : { message: sentMsg };
 }
 
 /** Emails an invite to each participant who hasn't had one yet, and records who got it. */
